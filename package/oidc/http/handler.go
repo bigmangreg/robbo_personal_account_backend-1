@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/skinnykaen/robbo_student_personal_account.git/package/achievements"
 	"github.com/skinnykaen/robbo_student_personal_account.git/package/licensing"
 	"github.com/skinnykaen/robbo_student_personal_account.git/package/lmsdb"
 	"github.com/skinnykaen/robbo_student_personal_account.git/package/models"
@@ -22,9 +23,10 @@ import (
 )
 
 type Handler struct {
-	cfg      *oidc.Config
-	portal   portalgateway.Gateway
-	sessions licensing.Gateway
+	cfg          *oidc.Config
+	portal       portalgateway.Gateway
+	sessions     licensing.Gateway
+	achievements achievements.UseCase
 }
 
 func NewHandler(portal portalgateway.Gateway, sessions licensing.Gateway) (Handler, error) {
@@ -33,6 +35,21 @@ func NewHandler(portal portalgateway.Gateway, sessions licensing.Gateway) (Handl
 		return Handler{}, err
 	}
 	return Handler{cfg: cfg, portal: portal, sessions: sessions}, nil
+}
+
+func (h *Handler) WithAchievements(uc achievements.UseCase) {
+	if h != nil {
+		h.achievements = uc
+	}
+}
+
+func (h *Handler) evaluateLogin(userID string) {
+	if h == nil || h.achievements == nil || strings.TrimSpace(userID) == "" {
+		return
+	}
+	if err := h.achievements.Evaluate(userID, achievements.EventLogin, achievements.EvaluatePayload{}); err != nil {
+		log.Printf("achievements: oidc login evaluate: %v", err)
+	}
 }
 
 func (h Handler) InitRoutes(router *gin.Engine) {
@@ -195,6 +212,7 @@ func (h Handler) PasswordLogin(c *gin.Context) {
 		role = models.Teacher
 	}
 	touchLastLogin(u.ID)
+	h.evaluateLogin(edxUserID)
 
 	sid := ""
 	if h.sessions != nil {
@@ -446,6 +464,7 @@ func (h Handler) Callback(c *gin.Context) {
 		edxUserID = strconv.FormatInt(profile.ID, 10)
 		role = lmsRoleFromProfile(profile)
 		touchLastLogin(profile.ID)
+		h.evaluateLogin(edxUserID)
 	} else {
 		// Unknown email / no LMS user — do not create a LK session.
 		frontend := viper.GetString("oidc.frontendBaseUrl")

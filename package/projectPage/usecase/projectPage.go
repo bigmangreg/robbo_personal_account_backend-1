@@ -3,11 +3,13 @@ package usecase
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net/url"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/skinnykaen/robbo_student_personal_account.git/package/achievements"
 	"github.com/skinnykaen/robbo_student_personal_account.git/package/auth"
 	"github.com/skinnykaen/robbo_student_personal_account.git/package/licensing"
 	"github.com/skinnykaen/robbo_student_personal_account.git/package/models"
@@ -26,6 +28,7 @@ type ProjectPageUseCaseImpl struct {
 	projectGateway      projects.Gateway
 	notificationGateway notifications.Gateway
 	licensingGateway    licensing.Gateway
+	achievements        achievements.UseCase
 }
 
 type ProjectPageUseCaseModule struct {
@@ -38,6 +41,7 @@ func SetupProjectPageUseCase(
 	projectGateway projects.Gateway,
 	notificationGateway notifications.Gateway,
 	licensingGateway licensing.Gateway,
+	achievementsUC achievements.UseCase,
 ) ProjectPageUseCaseModule {
 	return ProjectPageUseCaseModule{
 		UseCase: &ProjectPageUseCaseImpl{
@@ -45,6 +49,7 @@ func SetupProjectPageUseCase(
 			projectGateway:      projectGateway,
 			notificationGateway: notificationGateway,
 			licensingGateway:    licensingGateway,
+			achievements:        achievementsUC,
 		},
 	}
 }
@@ -118,6 +123,7 @@ func (p *ProjectPageUseCaseImpl) CreateProjectPage(authorId string, locale strin
 		newProjectPage.AuthorUserId = authorId
 		newProjectPage.AuthorName = lookupAuthorName(authorId)
 		newProjectPage.IsOwner = true
+		p.safeEvaluate(authorId, achievements.EventProjectCreate, achievements.EvaluatePayload{})
 	}
 	return
 }
@@ -220,6 +226,9 @@ func (p *ProjectPageUseCaseImpl) UpdateProjectPage(projectPage *models.ProjectPa
 	updated.AuthorUserId = row.OwnerUserID
 	updated.AuthorName = lookupAuthorName(row.OwnerUserID)
 	updated.IsOwner = acc.IsOwner
+	if acc.CanWrite && !existing.IsShared && projectPage.IsShared {
+		p.safeEvaluate(authorId, achievements.EventProjectPublish, achievements.EvaluatePayload{})
+	}
 	return updated, nil
 }
 
@@ -459,6 +468,10 @@ func (p *ProjectPageUseCaseImpl) PutProjectReaction(
 			return nil, err
 		}
 	}
+
+	p.safeEvaluate(userId, achievements.EventReactionPut, achievements.EvaluatePayload{
+		TargetUserID: strings.TrimSpace(row.OwnerUserID),
+	})
 
 	return p.projectPageGateway.GetProjectReactionSummary(projectPageId, userId)
 }
@@ -717,4 +730,13 @@ func (p *ProjectPageUseCaseImpl) enforcePublishProjectValid(
 		return projectPage.ErrInvalidProjectFile
 	}
 	return nil
+}
+
+func (p *ProjectPageUseCaseImpl) safeEvaluate(userID, event string, payload achievements.EvaluatePayload) {
+	if p.achievements == nil {
+		return
+	}
+	if err := p.achievements.Evaluate(userID, event, payload); err != nil {
+		log.Printf("achievements: evaluate %s for %s: %v", event, userID, err)
+	}
 }

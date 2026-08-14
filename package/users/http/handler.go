@@ -2,12 +2,13 @@ package http
 
 import (
 	"fmt"
+	"log"
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 	"github.com/skinnykaen/robbo_student_personal_account.git/package/auth"
 	"github.com/skinnykaen/robbo_student_personal_account.git/package/models"
 	"github.com/skinnykaen/robbo_student_personal_account.git/package/users"
-	"log"
-	"net/http"
 )
 
 type Handler struct {
@@ -47,6 +48,71 @@ type getSuperAdminResponse struct {
 
 type getFreeListener struct {
 	FreeListener models.FreeListenerHttp `json:"freeListener"`
+}
+
+// InitPublicProfileRoutes registers public-safe profile read for any authenticated user.
+// Separate from InitUsersRoutes (legacy admin CRUD, currently disabled).
+func (h *Handler) InitPublicProfileRoutes(router *gin.Engine) {
+	group := router.Group("/api/public-profile")
+	group.GET("/:userId", h.GetPublicProfile)
+}
+
+func (h *Handler) GetPublicProfile(c *gin.Context) {
+	_, role, err := h.authDelegate.UserIdentity(c)
+	if err != nil {
+		ErrorHandling(err, c)
+		return
+	}
+	allowedRoles := []models.Role{
+		models.Student,
+		models.Teacher,
+		models.Parent,
+		models.FreeListener,
+		models.UnitAdmin,
+		models.SuperAdmin,
+	}
+	if accessErr := h.authDelegate.UserAccess(role, allowedRoles, c); accessErr != nil {
+		ErrorHandling(accessErr, c)
+		return
+	}
+
+	userID := c.Param("userId")
+	if userID == "" {
+		ErrorHandling(users.ErrBadRequest, c)
+		return
+	}
+
+	// LMS path: GetStudentById loads auth_userprofile by id regardless of LK role label.
+	student, getErr := h.usersDelegate.GetStudentById(userID)
+	if getErr != nil {
+		ErrorHandling(getErr, c)
+		return
+	}
+	if student == nil || student.UserHTTP == nil {
+		ErrorHandling(auth.ErrUserNotFound, c)
+		return
+	}
+
+	u := student.UserHTTP
+	c.JSON(http.StatusOK, gin.H{
+		"id":               u.ID,
+		"nickname":         u.Nickname,
+		"fullName":         u.FullName,
+		"bio":              derefStr(u.Bio),
+		"levelOfEducation": derefStr(u.LevelOfEducation),
+		"country":          derefStr(u.Country),
+		"yearOfBirth":      u.YearOfBirth,
+		"gender":           derefStr(u.Gender),
+		"language":         derefStr(u.Language),
+		"createdAt":        u.CreatedAt,
+	})
+}
+
+func derefStr(v *string) string {
+	if v == nil {
+		return ""
+	}
+	return *v
 }
 
 func (h *Handler) InitUsersRoutes(router *gin.Engine) {

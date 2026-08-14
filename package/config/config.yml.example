@@ -19,7 +19,8 @@ auth:
   refresh_cookie_secure: false
 
 legacyPostgres:
-  # When false, LK uses Projects DB + OIDC only (no robbo_db).
+  # Override via LEGACY_POSTGRES_ENABLED. Compose default: false.
+  # When false, units/groups GraphQL admin is unavailable (PostgresClient.Db=nil).
   enabled: false
 
 oidc:

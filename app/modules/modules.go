@@ -3,6 +3,11 @@ package modules
 import (
 	"context"
 
+	"github.com/skinnykaen/robbo_student_personal_account.git/package/achievements"
+	achievementdelegate "github.com/skinnykaen/robbo_student_personal_account.git/package/achievements/delegate"
+	achievementgateway "github.com/skinnykaen/robbo_student_personal_account.git/package/achievements/gateway"
+	achievementhttp "github.com/skinnykaen/robbo_student_personal_account.git/package/achievements/http"
+	achievementusecase "github.com/skinnykaen/robbo_student_personal_account.git/package/achievements/usecase"
 	"github.com/skinnykaen/robbo_student_personal_account.git/package/auth"
 	authdelegate "github.com/skinnykaen/robbo_student_personal_account.git/package/auth/delegate"
 	authgateway "github.com/skinnykaen/robbo_student_personal_account.git/package/auth/gateway"
@@ -81,6 +86,7 @@ import (
 
 type GatewayModule struct {
 	AuthGateway          auth.Gateway
+	AchievementsGateway  achievements.Gateway
 	CohortsGateway       cohorts.Gateway
 	CoursePacketGateway  coursePacket.Gateway
 	CoursesGateway       courses.Gateway
@@ -98,6 +104,7 @@ type GatewayModule struct {
 func SetupGateway(postgresClient db_client.PostgresClient) GatewayModule {
 	return GatewayModule{
 		AuthGateway:          authgateway.SetupAuthGateway(postgresClient),
+		AchievementsGateway:  achievementgateway.SetupAchievementsGateway(postgresClient),
 		CohortsGateway:       chrtgateway.SetupCohortsGateway(postgresClient),
 		CoursePacketGateway:  coursePacketgateway.SetupCoursePacketGateway(postgresClient),
 		CoursesGateway:       crsgateway.SetupCoursesGateway(postgresClient),
@@ -115,6 +122,7 @@ func SetupGateway(postgresClient db_client.PostgresClient) GatewayModule {
 
 type UseCaseModule struct {
 	AuthUseCase          auth.UseCase
+	AchievementsUseCase  achievements.UseCase
 	CohortsUseCase       cohorts.UseCase
 	CoursePacketUseCase  coursePacket.UseCase
 	CoursesUseCase       courses.UseCase
@@ -132,8 +140,15 @@ type UseCaseModule struct {
 
 func SetupUseCase(gateway GatewayModule, portalGateway portalgateway.Gateway, userSearch *usersearch.Service) UseCaseModule {
 	licensingUC := licusecase.SetupLicensingUseCase(gateway.LicensingGateway)
+	achievementsUC := achievementusecase.SetupAchievementsUseCase(gateway.AchievementsGateway)
 	return UseCaseModule{
-		AuthUseCase:         authusecase.SetupAuthUseCase(gateway.UsersGateway, portalGateway, gateway.LicensingGateway),
+		AuthUseCase: authusecase.SetupAuthUseCase(
+			gateway.UsersGateway,
+			portalGateway,
+			gateway.LicensingGateway,
+			achievementsUC.UseCase,
+		),
+		AchievementsUseCase: achievementsUC.UseCase,
 		CohortsUseCase:      chrtusecase.SetupCohortUseCase(gateway.CohortsGateway),
 		CoursePacketUseCase: coursePacketusecase.SetupCoursePacketUseCase(gateway.CoursePacketGateway),
 		CoursesUseCase: crsusecase.SetupCourseUseCase(
@@ -149,6 +164,7 @@ func SetupUseCase(gateway GatewayModule, portalGateway portalgateway.Gateway, us
 			gateway.ProjectsGateway,
 			gateway.NotificationsGateway,
 			gateway.LicensingGateway,
+			achievementsUC.UseCase,
 		),
 		ProjectsUseCase:   prjusecase.SetupProjectUseCase(gateway.ProjectsGateway),
 		LicensingUseCase:  licensingUC.UseCase,
@@ -162,6 +178,7 @@ func SetupUseCase(gateway GatewayModule, portalGateway portalgateway.Gateway, us
 
 type DelegateModule struct {
 	AuthDelegate         auth.Delegate
+	AchievementsDelegate achievements.Delegate
 	CohortsDelegate      cohorts.Delegate
 	CoursePacketDelegate coursePacket.Delegate
 	CoursesDelegate      courses.Delegate
@@ -178,6 +195,7 @@ type DelegateModule struct {
 func SetupDelegate(usecase UseCaseModule) DelegateModule {
 	return DelegateModule{
 		AuthDelegate:         authdelegate.SetupAuthDelegate(usecase.AuthUseCase),
+		AchievementsDelegate: achievementdelegate.SetupAchievementsDelegate(usecase.AchievementsUseCase),
 		CohortsDelegate:      chrtdelegate.SetupCohortDelegate(usecase.CohortsUseCase, usecase.EdxUseCase),
 		CoursePacketDelegate: coursePacketdelegate.SetupCoursePacketDelegate(usecase.CoursePacketUseCase),
 		CoursesDelegate:      crsdelegate.SetupCourseDelegate(usecase.CoursesUseCase, usecase.EdxUseCase),
@@ -206,6 +224,7 @@ type HandlerModule struct {
 	PaymentsHandler            payhttp.Handler
 	PortalNotificationsHandler portalhttp.NotificationsHandler
 	NotificationsHandler       notificationhttp.Handler
+	AchievementsHandler        achievementhttp.Handler
 	UserSearchHandler          usersearchhttp.Handler
 	ModerationHandler          modhttp.Handler
 	OIDCHandler                *oidchttp.Handler
@@ -239,6 +258,9 @@ func SetupHandler(
 	oidcHandler *oidchttp.Handler,
 	userSearch *usersearch.Service,
 ) HandlerModule {
+	if oidcHandler != nil {
+		oidcHandler.WithAchievements(usecase.AchievementsUseCase)
+	}
 	return HandlerModule{
 		ProjectsHandler: prjhttp.NewProjectsHandler(delegate.AuthDelegate, delegate.ProjectsDelegate, delegate.ProjectPageDelegate),
 		ProjectPageHandler: ppagehttp.NewProjectPageHandler(
@@ -257,6 +279,7 @@ func SetupHandler(
 		PaymentsHandler:            payhttp.NewPaymentsHandler(delegate.AuthDelegate, delegate.PaymentsDelegate),
 		PortalNotificationsHandler: portalNotifications,
 		NotificationsHandler:       notificationhttp.NewNotificationHandler(delegate.AuthDelegate, usecase.NotificationsUseCase),
+		AchievementsHandler:        achievementhttp.NewAchievementsHandler(delegate.AuthDelegate, usecase.AchievementsUseCase),
 		UserSearchHandler:          usersearchhttp.NewHandler(delegate.AuthDelegate, userSearch),
 		ModerationHandler:          modhttp.NewHandler(delegate.AuthDelegate, delegate.ModerationDelegate),
 		OIDCHandler:                oidcHandler,
@@ -277,6 +300,7 @@ func SetupGraphQLModule(delegate DelegateModule) GraphQLModule {
 			delegate.RobboUnitsDelegate,
 			delegate.CoursesDelegate,
 			delegate.ProjectPageDelegate,
+			delegate.AchievementsDelegate,
 		),
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/gin-gonic/gin"
+	"github.com/skinnykaen/robbo_student_personal_account.git/package/achievements"
 	"github.com/skinnykaen/robbo_student_personal_account.git/package/auth"
 	"github.com/skinnykaen/robbo_student_personal_account.git/package/courses"
 	"github.com/skinnykaen/robbo_student_personal_account.git/package/projectPage"
@@ -18,12 +19,13 @@ import (
 // It serves as dependency injection for your app, add any dependencies you require here.
 
 type Resolver struct {
-	authDelegate        auth.Delegate
-	usersDelegate       users.Delegate
-	robboGroupDelegate  robboGroup.Delegate
-	robboUnitsDelegate  robboUnits.Delegate
-	coursesDelegate     courses.Delegate
-	projectPageDelegate projectPage.Delegate
+	authDelegate         auth.Delegate
+	usersDelegate        users.Delegate
+	robboGroupDelegate   robboGroup.Delegate
+	robboUnitsDelegate   robboUnits.Delegate
+	coursesDelegate      courses.Delegate
+	projectPageDelegate  projectPage.Delegate
+	achievementsDelegate achievements.Delegate
 }
 
 type MutationResolver struct{ *Resolver }
@@ -61,13 +63,15 @@ func NewResolver(
 	robboUnitsDelegate robboUnits.Delegate,
 	coursesDelegate courses.Delegate,
 	projectPageDelegate projectPage.Delegate,
+	achievementsDelegate achievements.Delegate,
 ) Resolver {
 	return Resolver{
-		authDelegate:        authDelegate,
-		usersDelegate:       usersDelegate,
-		robboGroupDelegate:  robboGroupDelegate,
-		robboUnitsDelegate:  robboUnitsDelegate,
-		coursesDelegate:     coursesDelegate,
-		projectPageDelegate: projectPageDelegate,
+		authDelegate:         authDelegate,
+		usersDelegate:        usersDelegate,
+		robboGroupDelegate:   robboGroupDelegate,
+		robboUnitsDelegate:   robboUnitsDelegate,
+		coursesDelegate:      coursesDelegate,
+		projectPageDelegate:  projectPageDelegate,
+		achievementsDelegate: achievementsDelegate,
 	}
 }

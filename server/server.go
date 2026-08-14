@@ -79,6 +79,8 @@ func SetupGinRouter(handlers modules.HandlerModule) *gin.Engine {
 	}
 	handlers.PortalNotificationsHandler.InitRoutes(router)
 	handlers.NotificationsHandler.InitRoutes(router)
+	handlers.AchievementsHandler.InitRoutes(router)
+	handlers.UsersHandler.InitPublicProfileRoutes(router)
 	handlers.UserSearchHandler.InitRoutes(router)
 	handlers.ModerationHandler.InitRoutes(router)
 	handlers.ProjectsHandler.InitProjectRoutes(router)

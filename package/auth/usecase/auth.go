@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/dgrijalva/jwt-go/v4"
+	"github.com/skinnykaen/robbo_student_personal_account.git/package/achievements"
 	"github.com/skinnykaen/robbo_student_personal_account.git/package/auth"
 	"github.com/skinnykaen/robbo_student_personal_account.git/package/licensing"
 	"github.com/skinnykaen/robbo_student_personal_account.git/package/lmsdb"
@@ -24,6 +25,7 @@ type AuthUseCaseImpl struct {
 	users.Gateway
 	portal                portalgateway.Gateway
 	sessions              licensing.Gateway
+	achievements          achievements.UseCase
 	hashSalt              string
 	accessSigningKey      []byte
 	refreshSigningKey     []byte
@@ -40,6 +42,7 @@ func SetupAuthUseCase(
 	gateway users.Gateway,
 	portal portalgateway.Gateway,
 	sessions licensing.Gateway,
+	achievementsUC achievements.UseCase,
 ) AuthUseCaseModule {
 	hashSalt := viper.GetString("auth.hash_salt")
 	accessSigningKey := []byte(viper.GetString("auth.access_signing_key"))
@@ -52,6 +55,7 @@ func SetupAuthUseCase(
 			Gateway:               gateway,
 			portal:                portal,
 			sessions:              sessions,
+			achievements:          achievementsUC,
 			hashSalt:              hashSalt,
 			accessSigningKey:      accessSigningKey,
 			refreshSigningKey:     refreshSigningKey,

@@ -4,6 +4,7 @@ import (
 	"log"
 	"strconv"
 
+	"github.com/skinnykaen/robbo_student_personal_account.git/package/achievements"
 	"github.com/skinnykaen/robbo_student_personal_account.git/package/auth"
 	"github.com/skinnykaen/robbo_student_personal_account.git/package/lmsdb"
 	"github.com/skinnykaen/robbo_student_personal_account.git/package/models"
@@ -55,7 +56,13 @@ func (a *AuthUseCaseImpl) signInLMS(email, password string, client auth.ClientIn
 		Role:  roleFromLMSUser(u),
 	}
 
-	return a.issueTokensWithSession(user, "lms_db", client)
+	accessToken, refreshToken, err = a.issueTokensWithSession(user, "lms_db", client)
+	if err == nil && a.achievements != nil {
+		if evalErr := a.achievements.Evaluate(edxID, achievements.EventLogin, achievements.EvaluatePayload{}); evalErr != nil {
+			log.Printf("achievements: login evaluate: %v", evalErr)
+		}
+	}
+	return accessToken, refreshToken, err
 }
 
 func touchLastLogin(userID int64) {
